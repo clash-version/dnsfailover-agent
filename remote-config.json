@@ -1,0 +1,19 @@
+{
+    "domains": [
+        "cn3.speedtest-node.com"
+    ],
+    "failover": [
+        {
+            "address": "backup-main.example.com",
+            "weight": 100
+        },
+        {
+            "address": "backup-secondary.example.com",
+            "weight": 50
+        },
+        {
+            "address": "backup-tertiary.example.com",
+            "weight": 20
+        }
+    ]
+}
