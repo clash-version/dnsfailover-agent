@@ -5,6 +5,7 @@ import (
 	"dnsfailover/internal/config"
 	"dnsfailover/internal/failover"
 	"dnsfailover/internal/logger"
+	"dnsfailover/internal/ping"
 	"fmt"
 	"sync"
 	"time"
@@ -47,6 +48,12 @@ func (s *Scheduler) Start() error {
 
 	if s.isRunning {
 		return fmt.Errorf("监控服务已经在运行中")
+	}
+
+	// 设置自定义DNS服务器（如果配置了）
+	if s.cfg.Ping.DNSServer != "" {
+		logger.Infof("使用自定义DNS服务器: %s", s.cfg.Ping.DNSServer)
+		ping.SetDNSServer(s.cfg.Ping.DNSServer)
 	}
 
 	logger.Info("==========================================")

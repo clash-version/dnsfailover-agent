@@ -24,6 +24,7 @@ type PingConfig struct {
 	FailCount        int              `json:"failcount"`          // 失败阈值
 	Timeout          int              `json:"timeout"`            // 超时时间(秒)
 	Retry            int              `json:"retry"`              // DNS更新重试次数
+	DNSServer        string           `json:"dns_server"`         // 自定义DNS服务器(可选，如: 1.1.1.1:53)
 	RemoteConfigURL  string           `json:"remote_config_url"`  // 远程配置URL（可选）
 	RemoteUpdateFreq int              `json:"remote_update_freq"` // 远程配置更新频率(秒)，0表示不启用
 	Domains          []string         `json:"domains"`            // 监控域名列表（本地配置）

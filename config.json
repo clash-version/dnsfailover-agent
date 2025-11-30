@@ -3,11 +3,12 @@
         "api_token": "Pwj442w5vqSVtCY5dBIr4ZLo6UhtXs7TxMRbnPC1"
     },
     "ping": {
+        "dns_server": "1.1.1.1:53",
         "frequency": 30,
         "failcount": 5,
         "timeout": 5,
         "retry": 3,
-        "remote_config_url": "https://download.xxx.com/dns/remote-config.json",
+        "remote_config_url": "https://d31f82t24kzmmf.cloudfront.net/dns/remote-config.json",
         "remote_update_freq": 60,
         "domains": [
             "cn3.speedtest.com",

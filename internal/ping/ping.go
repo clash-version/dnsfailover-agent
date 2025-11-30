@@ -1,11 +1,22 @@
 package ping
 
 import (
+	"context"
 	"fmt"
+	"log"
+	"net"
 	"time"
 
 	goping "github.com/go-ping/ping"
 )
+
+// 全局DNS服务器配置
+var globalDNSServer string
+
+// SetDNSServer 设置全局DNS服务器
+func SetDNSServer(dnsServer string) {
+	globalDNSServer = dnsServer
+}
 
 // Result Ping检测结果
 type Result struct {
@@ -14,11 +25,62 @@ type Result struct {
 	Error   error         // 错误信息
 }
 
+// CheckOptions Ping检测选项
+type CheckOptions struct {
+	Timeout   time.Duration
+	DNSServer string // 自定义DNS服务器，如 "1.1.1.1:53"
+}
+
 // Check 执行ping检测
 func Check(target string, timeout time.Duration) *Result {
+	return CheckWithOptions(target, &CheckOptions{
+		Timeout:   timeout,
+		DNSServer: globalDNSServer,
+	})
+}
+
+// CheckWithOptions 使用选项执行ping检测
+func CheckWithOptions(target string, opts *CheckOptions) *Result {
 	result := &Result{}
 
-	pinger, err := goping.NewPinger(target)
+	// 如果是域名，先使用 DNS 解析
+	ipAddr := target
+	if net.ParseIP(target) == nil {
+		// 是域名，需要解析
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		var ips []string
+		var err error
+
+		if opts.DNSServer != "" {
+			// 使用自定义 DNS 服务器
+			resolver := &net.Resolver{
+				PreferGo: true,
+				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+					d := net.Dialer{Timeout: 5 * time.Second}
+					return d.DialContext(ctx, "udp", opts.DNSServer)
+				},
+			}
+			ips, err = resolver.LookupHost(ctx, target)
+		} else {
+			// 使用系统默认 DNS
+			ips, err = net.DefaultResolver.LookupHost(ctx, target)
+		}
+
+		if err != nil {
+			result.Error = fmt.Errorf("DNS解析失败 (%s): %w", target, err)
+			return result
+		}
+		if len(ips) == 0 {
+			result.Error = fmt.Errorf("DNS解析未返回IP地址: %s", target)
+			return result
+		}
+		ipAddr = ips[0] // 使用第一个IP
+		log.Printf("[DEBUG] DNS解析: %s -> %s (使用DNS: %s)", target, ipAddr, opts.DNSServer)
+	}
+
+	pinger, err := goping.NewPinger(ipAddr)
 	if err != nil {
 		result.Error = fmt.Errorf("创建pinger失败: %w", err)
 		return result
@@ -27,10 +89,10 @@ func Check(target string, timeout time.Duration) *Result {
 	// Windows系统优先尝试特权模式，失败则降级为UDP模式
 	// 首先尝试特权模式（ICMP，需要管理员权限）
 	pinger.SetPrivileged(true)
-	
+
 	// 设置ping参数
-	pinger.Count = 3                    // 发送3个包
-	pinger.Timeout = timeout            // 超时时间
+	pinger.Count = 3                         // 发送3个包
+	pinger.Timeout = opts.Timeout            // 超时时间
 	pinger.Interval = time.Millisecond * 500 // 包间隔
 
 	// 执行ping
@@ -63,18 +125,18 @@ func Check(target string, timeout time.Duration) *Result {
 // CheckWithRetry 带重试的ping检测
 func CheckWithRetry(target string, timeout time.Duration, retryCount int) *Result {
 	var result *Result
-	
+
 	for i := 0; i < retryCount; i++ {
 		result = Check(target, timeout)
 		if result.Success {
 			return result
 		}
-		
+
 		// 如果不是最后一次重试，等待一小段时间
 		if i < retryCount-1 {
 			time.Sleep(time.Second)
 		}
 	}
-	
+
 	return result
 }
