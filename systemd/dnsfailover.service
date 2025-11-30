@@ -1,6 +1,6 @@
 [Unit]
 Description=DNS Failover Agent
-Documentation=https://github.com/clash-version/n8n-agent
+Documentation=https://github.com/clash-version/dnsfailover-agent
 After=network-online.target
 Wants=network-online.target
 
