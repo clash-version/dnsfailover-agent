@@ -1,8 +1,6 @@
 module dnsfailover
 
-go 1.24.0
-
-toolchain go1.24.10
+go 1.23
 
 require (
 	github.com/cloudflare/cloudflare-go v0.86.0
