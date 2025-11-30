@@ -86,37 +86,39 @@ func CheckWithOptions(target string, opts *CheckOptions) *Result {
 		return result
 	}
 
-	// Windows系统优先尝试特权模式，失败则降级为UDP模式
-	// 首先尝试特权模式（ICMP，需要管理员权限）
+	// Linux系统使用特权模式（ICMP）
 	pinger.SetPrivileged(true)
 
 	// 设置ping参数
-	pinger.Count = 3                         // 发送3个包
+	pinger.Count = 4                         // 发送4个包
 	pinger.Timeout = opts.Timeout            // 超时时间
-	pinger.Interval = time.Millisecond * 500 // 包间隔
+	pinger.Interval = time.Millisecond * 300 // 包间隔300ms
+
+	log.Printf("[DEBUG] 开始ICMP Ping: %s (目标IP: %s, 超时: %v)", target, ipAddr, opts.Timeout)
 
 	// 执行ping
 	err = pinger.Run()
 	if err != nil {
-		// 如果特权模式失败，尝试非特权模式（UDP）
-		pinger.SetPrivileged(false)
-		err = pinger.Run()
-		if err != nil {
-			result.Error = fmt.Errorf("执行ping失败: %w", err)
-			return result
-		}
+		result.Error = fmt.Errorf("执行ping失败: %w", err)
+		log.Printf("[ERROR] ICMP Ping执行失败: %s - %v", ipAddr, err)
+		return result
 	}
 
 	// 获取统计信息
 	stats := pinger.Statistics()
+	log.Printf("[DEBUG] ICMP Ping统计: %s - 发送: %d, 接收: %d, 丢包率: %.1f%%, 平均延迟: %v",
+		ipAddr, stats.PacketsSent, stats.PacketsRecv, stats.PacketLoss, stats.AvgRtt)
 
 	// 判断是否成功（至少有一个包收到响应）
 	if stats.PacketsRecv > 0 {
 		result.Success = true
 		result.Latency = stats.AvgRtt
+		log.Printf("[DEBUG] ✓ ICMP Ping成功: %s (延迟: %v)", ipAddr, result.Latency)
 	} else {
 		result.Success = false
-		result.Error = fmt.Errorf("所有数据包丢失 (发送: %d, 接收: %d)", stats.PacketsSent, stats.PacketsRecv)
+		result.Error = fmt.Errorf("ICMP应答超时 - 目标主机可能禁用了ICMP响应 (发送: %d, 接收: %d, 丢包率: %.0f%%)",
+			stats.PacketsSent, stats.PacketsRecv, stats.PacketLoss)
+		log.Printf("[WARN] ✗ ICMP Ping失败: %s - %v", ipAddr, result.Error)
 	}
 
 	return result
