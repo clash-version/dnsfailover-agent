@@ -1,7 +1,6 @@
 package ping
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"net"
@@ -10,14 +9,6 @@ import (
 	goping "github.com/go-ping/ping"
 )
 
-// 全局DNS服务器配置
-var globalDNSServer string
-
-// SetDNSServer 设置全局DNS服务器
-func SetDNSServer(dnsServer string) {
-	globalDNSServer = dnsServer
-}
-
 // Result Ping检测结果
 type Result struct {
 	Success bool          // 是否成功
@@ -25,49 +16,15 @@ type Result struct {
 	Error   error         // 错误信息
 }
 
-// CheckOptions Ping检测选项
-type CheckOptions struct {
-	Timeout   time.Duration
-	DNSServer string // 自定义DNS服务器，如 "1.1.1.1:53"
-}
-
 // Check 执行ping检测
 func Check(target string, timeout time.Duration) *Result {
-	return CheckWithOptions(target, &CheckOptions{
-		Timeout:   timeout,
-		DNSServer: globalDNSServer,
-	})
-}
-
-// CheckWithOptions 使用选项执行ping检测
-func CheckWithOptions(target string, opts *CheckOptions) *Result {
 	result := &Result{}
 
-	// 如果是域名，先使用 DNS 解析
+	// 如果是域名，先使用系统 DNS 解析
 	ipAddr := target
 	if net.ParseIP(target) == nil {
 		// 是域名，需要解析
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		var ips []string
-		var err error
-
-		if opts.DNSServer != "" {
-			// 使用自定义 DNS 服务器
-			resolver := &net.Resolver{
-				PreferGo: true,
-				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-					d := net.Dialer{Timeout: 5 * time.Second}
-					return d.DialContext(ctx, "udp", opts.DNSServer)
-				},
-			}
-			ips, err = resolver.LookupHost(ctx, target)
-		} else {
-			// 使用系统默认 DNS
-			ips, err = net.DefaultResolver.LookupHost(ctx, target)
-		}
-
+		ips, err := net.LookupHost(target)
 		if err != nil {
 			result.Error = fmt.Errorf("DNS解析失败 (%s): %w", target, err)
 			return result
@@ -77,7 +34,7 @@ func CheckWithOptions(target string, opts *CheckOptions) *Result {
 			return result
 		}
 		ipAddr = ips[0] // 使用第一个IP
-		log.Printf("[DEBUG] DNS解析: %s -> %s (使用DNS: %s)", target, ipAddr, opts.DNSServer)
+		log.Printf("[DEBUG] DNS解析: %s -> %s", target, ipAddr)
 	}
 
 	pinger, err := goping.NewPinger(ipAddr)
@@ -91,10 +48,10 @@ func CheckWithOptions(target string, opts *CheckOptions) *Result {
 
 	// 设置ping参数
 	pinger.Count = 4                         // 发送4个包
-	pinger.Timeout = opts.Timeout            // 超时时间
+	pinger.Timeout = timeout                 // 超时时间
 	pinger.Interval = time.Millisecond * 300 // 包间隔300ms
 
-	log.Printf("[DEBUG] 开始ICMP Ping: %s (目标IP: %s, 超时: %v)", target, ipAddr, opts.Timeout)
+	log.Printf("[DEBUG] 开始ICMP Ping: %s (目标IP: %s, 超时: %v)", target, ipAddr, timeout)
 
 	// 执行ping
 	err = pinger.Run()

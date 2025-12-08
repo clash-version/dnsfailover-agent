@@ -1,38 +1,28 @@
 ﻿package cmd
 
 import (
-"dnsfailover/internal/cloudflare"
-"dnsfailover/internal/config"
-"dnsfailover/internal/logger"
-"fmt"
-"os"
-"sync"
+	"dnsfailover/internal/cloudflare"
+	"dnsfailover/internal/config"
+	"dnsfailover/internal/logger"
+	"fmt"
+	"sync"
 )
 
 var (
-globalConfig   *config.Config
-globalCFClient *cloudflare.Client
-initOnce       sync.Once
-initError      error
+	globalConfig   *config.Config
+	globalCFClient *cloudflare.Client
+	initOnce       sync.Once
+	initError      error
 )
- 
+
 func InitSystem() error {
-initOnce.Do(func() {
-cfg, err := config.Load(cfgFile)
-if err != nil {
-if os.IsNotExist(err) {
-fmt.Println("配置文件不存在，正在生成默认配置...")
-if err := config.GenerateDefault(cfgFile); err != nil {
-initError = fmt.Errorf("生成配置失败: %w", err)
-return
-}
-fmt.Printf("已生成: %s\n", cfgFile)
-fmt.Println("请填入Cloudflare API Token后重新运行")
-os.Exit(0)
-}
-initError = err
-return
-}
+	initOnce.Do(func() {
+		// 从环境变量加载配置
+		cfg, err := config.Load()
+		if err != nil {
+			initError = fmt.Errorf("配置加载失败: %w", err)
+			return
+		}
 		globalConfig = cfg
 
 		// 根据配置决定是否启用文件日志
@@ -55,20 +45,17 @@ return
 		}
 		globalCFClient = cfClient
 
-// 跳过验证，直接在实际使用时验证（避免权限不足的警告）
-logger.Info("Cloudflare客户端初始化成功")
-
-logger.Infof("监控域名: %d 个", len(cfg.Ping.Domains))
-logger.Infof("Failover地址: %d 个", len(cfg.Ping.Failover))
-logger.Info("系统初始化完成")
-})
-return initError
+		logger.Info("Cloudflare客户端初始化成功")
+		logger.Infof("远程配置地址: %s", cfg.Ping.RemoteConfigURL)
+		logger.Info("系统初始化完成")
+	})
+	return initError
 }
 
 func GetConfig() *config.Config {
-return globalConfig
+	return globalConfig
 }
 
 func GetCFClient() *cloudflare.Client {
-return globalCFClient
+	return globalCFClient
 }

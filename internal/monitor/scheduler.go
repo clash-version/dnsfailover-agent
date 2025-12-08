@@ -50,29 +50,12 @@ func (s *Scheduler) Start() error {
 		return fmt.Errorf("监控服务已经在运行中")
 	}
 
-	// 设置自定义DNS服务器（如果配置了）
-	if s.cfg.Ping.DNSServer != "" {
-		logger.Infof("使用自定义DNS服务器: %s", s.cfg.Ping.DNSServer)
-		ping.SetDNSServer(s.cfg.Ping.DNSServer)
-	}
-
-	logger.Info("==========================================")
 	logger.Info("启动DNS Failover监控服务")
-	logger.Infof("检测频率: %d 秒", s.cfg.Ping.Frequency)
-	logger.Infof("失败阈值: %d 次", s.cfg.Ping.FailCount)
 
-	// 检查是否启用远程配置
-	if s.cfg.IsRemoteConfigEnabled() {
-		logger.Infof("远程配置已启用: %s", s.cfg.Ping.RemoteConfigURL)
-		logger.Infof("远程配置更新频率: %d 秒", s.cfg.Ping.RemoteUpdateFreq)
-
-		// 立即拉取一次远程配置
-		if err := s.updateRemoteConfig(); err != nil {
-			logger.Warnf("初始拉取远程配置失败，使用本地配置: %v", err)
-		}
+	// 立即拉取一次远程配置
+	if err := s.updateRemoteConfig(); err != nil {
+		return fmt.Errorf("拉取远程配置失败: %w", err)
 	}
-
-	logger.Info("==========================================")
 
 	// 初始化所有域名的内存状态
 	s.configMu.RLock()
@@ -81,7 +64,6 @@ func (s *Scheduler) Start() error {
 
 	for _, domain := range domains {
 		s.stateManager.InitDomain(domain)
-		logger.Infof("初始化域名状态: %s", domain)
 	}
 
 	// 创建定时器
@@ -91,13 +73,12 @@ func (s *Scheduler) Start() error {
 	// 启动监控循环
 	go s.monitorLoop()
 
-	// 启动远程配置更新循环（如果启用）
-	if s.cfg.IsRemoteConfigEnabled() {
-		s.configTicker = time.NewTicker(time.Duration(s.cfg.Ping.RemoteUpdateFreq) * time.Second)
-		go s.configUpdateLoop()
-	}
+	// 启动远程配置更新循环
+	s.configTicker = time.NewTicker(time.Duration(s.cfg.Ping.RemoteUpdateFreq) * time.Second)
+	go s.configUpdateLoop()
 
-	logger.Info("监控服务启动成功")
+	logger.Infof("监控服务启动成功 (检测频率: %ds, 失败阈值: %d次, 域名数: %d)",
+		s.cfg.Ping.Frequency, s.cfg.Ping.FailCount, len(domains))
 	return nil
 }
 
@@ -110,19 +91,15 @@ func (s *Scheduler) Stop() error {
 		return fmt.Errorf("监控服务未在运行")
 	}
 
-	logger.Info("正在停止监控服务...")
-
 	s.ticker.Stop()
 	s.stopChan <- true
 
-	// 停止远程配置更新
 	if s.configTicker != nil {
 		s.configTicker.Stop()
 		s.configStopChan <- true
 	}
 
 	s.isRunning = false
-
 	logger.Info("监控服务已停止")
 	return nil
 }
@@ -152,9 +129,6 @@ func (s *Scheduler) monitorLoop() {
 
 // checkAllDomains 检查所有域名
 func (s *Scheduler) checkAllDomains() {
-	logger.Info("========== 开始检测域名 ==========")
-	startTime := time.Now()
-
 	// 获取当前域名列表（加读锁）
 	s.configMu.RLock()
 	domains := make([]string, len(s.cfg.Ping.Domains))
@@ -162,11 +136,8 @@ func (s *Scheduler) checkAllDomains() {
 	s.configMu.RUnlock()
 
 	if len(domains) == 0 {
-		logger.Warn("没有需要检测的域名")
 		return
 	}
-
-	logger.Infof("共 %d 个域名需要检测", len(domains))
 
 	// 并发检测所有域名
 	var wg sync.WaitGroup
@@ -179,67 +150,41 @@ func (s *Scheduler) checkAllDomains() {
 	}
 
 	wg.Wait()
-
-	duration := time.Since(startTime)
-	logger.Infof("========== 检测完成 (耗时: %v) ==========\n", duration)
 }
 
 // checkDomain 检查单个域名
 func (s *Scheduler) checkDomain(domain string) {
-	logger.Infof("检测域名: %s", domain)
-
-	// 检查是否在冷却期
-	if s.stateManager.IsInCooldown(domain) {
-		remainingMin := s.stateManager.GetCooldownRemaining(domain)
-		logger.Infof("⏳ %s 在切换冷却期内，跳过故障转移检测 (剩余: %.1f分钟)", domain, remainingMin)
-		// 仍然执行 ping 检测，但不触发故障转移
-	}
+	// 检查是否在冷却期（仍然执行检测，但不触发故障转移）
+	inCooldown := s.stateManager.IsInCooldown(domain)
 
 	// Ping检测
 	timeout := time.Duration(s.cfg.Ping.Timeout) * time.Second
-	result := Ping(domain, timeout)
+	result := ping.Check(domain, timeout)
 
 	if result.Success {
-		// Ping成功
-		logger.Infof("✓ %s 正常 (延迟: %v)", domain, result.Latency)
-
-		// 重置失败计数
+		logger.Infof("[PING] ✓ %s (延迟: %v)", domain, result.Latency)
 		s.stateManager.ResetFailCount(domain)
 	} else {
-		// Ping失败
 		newFailCount := s.stateManager.IncrementFailCount(domain)
-		logger.Warnf("✗ %s 失败 (%d/%d) - %v",
-			domain, newFailCount, s.cfg.Ping.FailCount, result.Error)
+		logger.Warnf("[PING] ✗ %s 失败 (%d/%d) - %v", domain, newFailCount, s.cfg.Ping.FailCount, result.Error)
 
-		// 判断是否达到失败阈值（且不在冷却期内）
-		if newFailCount >= s.cfg.Ping.FailCount {
-			if s.stateManager.IsInCooldown(domain) {
-				remainingMin := s.stateManager.GetCooldownRemaining(domain)
-				logger.Warnf("⚠ %s 达到失败阈值，但在冷却期内，不触发故障转移 (剩余: %.1f分钟)", domain, remainingMin)
-			} else {
-				logger.Errorf("⚠ %s 达到失败阈值，触发故障转移", domain)
-				s.handleDomainFailure(domain)
-			}
+		// 达到失败阈值且不在冷却期时触发故障转移
+		if newFailCount >= s.cfg.Ping.FailCount && !inCooldown {
+			logger.Errorf("[PING] ⚠ %s 触发故障转移", domain)
+			s.handleDomainFailure(domain)
 		}
 	}
 }
 
 // handleDomainFailure 处理域名故障
 func (s *Scheduler) handleDomainFailure(domain string) {
-	logger.Infof("========== 故障转移: %s ==========", domain)
-
-	// 执行自动切换
 	err := s.switcher.AutoSwitch(domain)
 	if err != nil {
-		logger.Errorf("故障转移失败: %v", err)
-		// 失败后重置计数，下个周期重新尝试
-		logger.Warn("重置失败计数，下个周期将重新尝试")
+		logger.Errorf("故障转移失败 [%s]: %v", domain, err)
 		s.stateManager.ResetFailCount(domain)
 	} else {
 		logger.Infof("✓ 故障转移成功: %s", domain)
-		// 成功后标记已切换，进入冷却期
 		s.stateManager.MarkSwitched(domain)
-		logger.Infof("⏳ 进入冷却期（5分钟），期间不会再次触发故障转移")
 	}
 }
 
@@ -264,16 +209,12 @@ func (s *Scheduler) configUpdateLoop() {
 
 // updateRemoteConfig 更新远程配置
 func (s *Scheduler) updateRemoteConfig() error {
-	logger.Info("========== 拉取远程配置 ==========")
-
-	// 拉取远程配置
 	remoteCfg, err := config.FetchRemoteConfig(s.cfg.Ping.RemoteConfigURL)
 	if err != nil {
 		return fmt.Errorf("拉取远程配置失败: %w", err)
 	}
 
-	logger.Infof("远程配置拉取成功: %d 个域名, %d 个failover",
-		len(remoteCfg.Domains), len(remoteCfg.Failover))
+	remoteCfg.SetDefaults()
 
 	// 获取当前配置（加读锁）
 	s.configMu.RLock()
@@ -290,7 +231,6 @@ func (s *Scheduler) updateRemoteConfig() error {
 	// 处理域名变更
 	s.handleDomainChanges(oldDomains, newDomains)
 
-	logger.Info("远程配置应用成功")
 	return nil
 }
 

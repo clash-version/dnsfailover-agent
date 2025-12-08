@@ -1,19 +1,46 @@
 {
-    "domains": [
-        "cn3.speedtest-node.com"
-    ],
-    "failover": [
-        {
-            "address": "backup-main.example.com",
-            "weight": 100
-        },
-        {
-            "address": "backup-secondary.example.com",
-            "weight": 50
-        },
-        {
-            "address": "backup-tertiary.example.com",
-            "weight": 20
-        }
-    ]
+    "ping": {
+        "frequency": 30,
+        "failcount": 5,
+        "timeout": 5,
+        "retry": 3,
+        "domains": [
+            "cn3.speedtest-node.com"
+        ],
+        "failover": [
+            {
+                "address": "backup-main.example.com",
+                "weight": 100
+            },
+            {
+                "address": "backup-secondary.example.com",
+                "weight": 50
+            },
+            {
+                "address": "backup-tertiary.example.com",
+                "weight": 20
+            }
+        ]
+    },
+    "tcp": {
+        "frequency": 30,
+        "failcount": 5,
+        "timeout": 5,
+        "retry": 3,
+        "domains": [
+            "tcp1.example.com:80",
+            "tcp2.example.com:443"
+        ]
+    },
+    "http": {
+        "frequency": 30,
+        "failcount": 5,
+        "timeout": 5,
+        "retry": 3,
+        "domains": [
+            "http://example.com/health",
+            "https://example.org/status"
+        ]
+    }
+    
 }

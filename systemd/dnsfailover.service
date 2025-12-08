@@ -17,8 +17,8 @@ StandardError=journal
 # 工作目录
 WorkingDirectory=/etc/dnsfailover
 
-# 环境变量
-Environment="CONFIG_PATH=/etc/dnsfailover/config.json"
+# 从文件加载环境变量
+EnvironmentFile=/etc/dnsfailover/.env
 
 # 安全选项
 NoNewPrivileges=true

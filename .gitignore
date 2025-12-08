@@ -12,6 +12,8 @@ logs/
 *.test
 *.out
 
+.env*
+
 # 依赖目录
 vendor/
 

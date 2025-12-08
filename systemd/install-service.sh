@@ -47,17 +47,18 @@ printf "${GREEN}创建配置目录...${NC}\n"
 mkdir -p /etc/dnsfailover
 mkdir -p /var/log/dnsfailover
 
-# 4. 复制配置文件（如果存在）
-if [ -f "$SCRIPT_DIR/config.json" ]; then
-    if [ -f /etc/dnsfailover/config.json ]; then
-        printf "${YELLOW}配置文件已存在，备份为 config.json.bak${NC}\n"
-        cp /etc/dnsfailover/config.json /etc/dnsfailover/config.json.bak
+# 4. 复制环境变量文件
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    if [ -f /etc/dnsfailover/.env ]; then
+        printf "${YELLOW}环境变量文件已存在，备份为 .env.bak${NC}\n"
+        cp /etc/dnsfailover/.env /etc/dnsfailover/.env.bak
     fi
-    cp "$SCRIPT_DIR/config.json" /etc/dnsfailover/config.json
-    printf "✓ 配置文件已复制到 /etc/dnsfailover/config.json\n"
+    cp "$SCRIPT_DIR/.env" /etc/dnsfailover/.env
+    chmod 600 /etc/dnsfailover/.env  # 限制权限，保护敏感信息
+    printf "✓ 环境变量文件已复制到 /etc/dnsfailover/.env\n"
 else
-    printf "${YELLOW}警告: 未找到 config.json，请手动创建配置文件${NC}\n"
-    printf "配置文件位置: /etc/dnsfailover/config.json\n"
+    printf "${YELLOW}警告: 未找到 .env 文件，请手动创建${NC}\n"
+    printf "文件位置: /etc/dnsfailover/.env\n"
 fi
 
 # 5. 安装 systemd 服务
