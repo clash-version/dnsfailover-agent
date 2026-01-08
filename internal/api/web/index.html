@@ -1,0 +1,1342 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>网络探测代理 管理面板</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --accent-color: #3b82f6;
+            --accent-hover: #2563eb;
+            --success-color: #10b981;
+            --danger-color: #ef4444;
+            --border-color: #334155;
+            --input-bg: #0f172a;
+            --glow-color: rgba(59, 130, 246, 0.5);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        /* Tech Header */
+        header {
+            background: var(--card-bg);
+            padding: 20px 30px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 700;
+            background: linear-gradient(to right, #38bdf8, #818cf8);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        /* Pulsing Dot */
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--success-color);
+            box-shadow: 0 0 10px var(--success-color);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        /* Tabs */
+        .tabs {
+            background: var(--card-bg);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        .tab-buttons {
+            display: flex;
+            background: rgba(15, 23, 42, 0.5);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0 10px;
+        }
+
+        .tab-button {
+            padding: 18px 24px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .tab-button:hover {
+            color: var(--text-primary);
+        }
+
+        .tab-button.active {
+            color: var(--accent-color);
+        }
+
+        .tab-button.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: var(--accent-color);
+            box-shadow: 0 0 10px var(--accent-color);
+        }
+
+        .tab-content {
+            display: none;
+            padding: 30px;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Forms */
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        input[type="number"],
+        input[type="text"],
+        textarea,
+        select {
+            width: 100%;
+            padding: 12px 16px;
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        input:focus,
+        textarea:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        /* Checkbox styling */
+        input[type="checkbox"] {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            cursor: pointer;
+            position: relative;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+
+        input[type="checkbox"]:checked {
+            background: var(--accent-color);
+            border-color: var(--accent-color);
+        }
+
+        input[type="checkbox"]:checked::after {
+            content: '✓';
+            position: absolute;
+            color: white;
+            font-size: 14px;
+            left: 4px;
+            top: 0;
+            line-height: 20px;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: var(--accent-color);
+            color: #fff;
+            box-shadow: 0 4px 14px 0 rgba(59, 130, 246, 0.39);
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: #fff;
+            box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.39);
+        }
+
+        .btn-success:hover {
+            filter: brightness(110%);
+            transform: translateY(-1px);
+        }
+
+        .btn-danger {
+            background: var(--danger-color);
+            color: #fff;
+        }
+
+        .btn-secondary {
+            background: #64748b; /* Slate 500 */
+            color: #fff;
+        }
+
+        .btn-secondary:hover {
+            background: #475569; /* Slate 600 */
+        }
+        .list-item {
+            background: var(--input-bg);
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid var(--border-color);
+        }
+
+        /* Grid */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Tables in Tech Style */
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        th {
+            background: rgba(15, 23, 42, 0.5);
+            color: var(--text-secondary);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 12px;
+            letter-spacing: 0.5px;
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        td {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        /* Code/Logs */
+        #log_content {
+            background: #000000 !important;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #4ade80 !important; /* Matrix Green */
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            padding: 20px !important;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: var(--bg-color); 
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color); 
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569; 
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            background: var(--card-bg);
+            border-radius: 8px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+            display: none;
+            z-index: 1000;
+            border: 1px solid var(--border-color);
+        }
+
+        .toast.show {
+            display: block;
+            animation: slideIn 0.3s;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .toast.success { border-left: 4px solid var(--success-color); }
+        .toast.error { border-left: 4px solid var(--danger-color); }
+
+        /* Panel Sections */
+        .panel-section {
+            margin-bottom: 24px; 
+            padding: 20px; 
+            background: rgba(15, 23, 42, 0.5); 
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+
+        .panel-section-label {
+            display: flex; 
+            align-items: center; 
+            cursor: pointer; 
+            font-weight: 600;
+            margin: 0;
+            color: var(--text-primary);
+        }
+
+        /* Modal */
+        .modal-overlay {
+            display: none; 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            right: 0; 
+            bottom: 0; 
+            background: rgba(0,0,0,0.7); 
+            backdrop-filter: blur(5px);
+            z-index: 1000; 
+            overflow-y: auto;
+        }
+
+        .modal-body {
+            background: var(--card-bg); 
+            max-width: 600px; 
+            margin: 50px auto; 
+            padding: 30px; 
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        
+        .code-block {
+            margin-top: 20px; 
+            padding: 15px; 
+            background: #000; 
+            border-radius: 8px; 
+            border-left: 4px solid var(--success-color);
+            border: 1px solid var(--border-color);
+            font-family: monospace;
+        }
+
+        .code-inline {
+            background: rgba(255,255,255,0.1); 
+            padding: 2px 6px; 
+            border-radius: 4px; 
+            color: var(--accent-color);
+            font-family: monospace;
+        }
+
+        .text-success { color: var(--success-color); }
+        .text-muted { color: var(--text-secondary); }
+        
+        .flex-row { display: flex; gap: 10px; align-items: center; }
+        .flex-1 { flex: 1; }
+        .flex-2 { flex: 2; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🌐 网络探测代理 管理面板</h1>
+            <div class="status">
+                <button class="btn btn-primary" onclick="refreshAll()" style="margin-right: 15px; padding: 8px 16px;">🔄 刷新配置</button>
+                <span class="status-dot"></span>
+                <span id="statusText">运行中</span>
+            </div>
+        </header>
+
+        <div class="tabs">
+            <div class="tab-buttons">
+                <button class="tab-button active" data-tab="ping">Ping 监控</button>
+                <button class="tab-button" data-tab="tcp">TCP 监控</button>
+                <button class="tab-button" data-tab="http">HTTP 监控</button>
+                <button class="tab-button" data-tab="webhook">Webhook</button>
+                <button class="tab-button" data-tab="schedules">定时任务</button>
+                <button class="tab-button" data-tab="logs">实时日志</button>
+            </div>
+
+            <!-- Ping 配置 -->
+            <div class="tab-content active" id="ping-tab">
+                <div class="panel-section">
+                    <label class="panel-section-label">
+                        <input type="checkbox" id="ping_enabled">
+                        启用 Ping 监控
+                    </label>
+                </div>
+                <div class="grid">
+                    <div class="form-group">
+                        <label>检测间隔（秒）</label>
+                        <input type="number" id="ping_frequency" min="10" value="30">
+                    </div>
+                    <div class="form-group">
+                        <label>失败阈值（次）</label>
+                        <input type="number" id="ping_failcount" min="1" value="3">
+                    </div>
+                    <div class="form-group">
+                        <label>超时时间（秒）</label>
+                        <input type="number" id="ping_timeout" min="1" value="5">
+                    </div>
+                    <div class="form-group">
+                        <label>重试次数</label>
+                        <input type="number" id="ping_retry" min="1" value="3">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>监控域名（每行一个）</label>
+                    <textarea id="ping_domains" rows="5" placeholder="example.com"></textarea>
+                </div>
+
+                <button class="btn btn-primary" onclick="saveConfig('ping')">保存 Ping 配置</button>
+            </div>
+
+            <!-- TCP 配置 -->
+            <div class="tab-content" id="tcp-tab">
+                <div class="panel-section">
+                    <label class="panel-section-label">
+                        <input type="checkbox" id="tcp_enabled">
+                        启用 TCP 监控
+                    </label>
+                </div>
+                <div class="grid">
+                    <div class="form-group">
+                        <label>检测间隔（秒）</label>
+                        <input type="number" id="tcp_frequency" min="10" value="30">
+                    </div>
+                    <div class="form-group">
+                        <label>失败阈值（次）</label>
+                        <input type="number" id="tcp_failcount" min="1" value="5">
+                    </div>
+                    <div class="form-group">
+                        <label>超时时间（秒）</label>
+                        <input type="number" id="tcp_timeout" min="1" value="5">
+                    </div>
+                    <div class="form-group">
+                        <label>重试次数</label>
+                        <input type="number" id="tcp_retry" min="1" value="3">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>监控地址（格式: host:port，每行一个）</label>
+                    <textarea id="tcp_domains" rows="5" placeholder="example.com:443"></textarea>
+                </div>
+
+                <button class="btn btn-primary" onclick="saveConfig('tcp')">保存 TCP 配置</button>
+            </div>
+
+            <!-- HTTP 配置 -->
+            <div class="tab-content" id="http-tab">
+                <div class="panel-section">
+                    <label class="panel-section-label">
+                        <input type="checkbox" id="http_enabled">
+                        启用 HTTP 监控
+                    </label>
+                </div>
+                <div class="grid">
+                    <div class="form-group">
+                        <label>检测间隔（秒）</label>
+                        <input type="number" id="http_frequency" min="10" value="30">
+                    </div>
+                    <div class="form-group">
+                        <label>失败阈值（次）</label>
+                        <input type="number" id="http_failcount" min="1" value="5">
+                    </div>
+                    <div class="form-group">
+                        <label>超时时间（秒）</label>
+                        <input type="number" id="http_timeout" min="1" value="5">
+                    </div>
+                    <div class="form-group">
+                        <label>重试次数</label>
+                        <input type="number" id="http_retry" min="1" value="3">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>监控 URL（每行一个）</label>
+                    <textarea id="http_domains" rows="5" placeholder="https://example.com/health"></textarea>
+                </div>
+
+                <button class="btn btn-primary" onclick="saveConfig('http')">保存 HTTP 配置</button>
+            </div>
+
+            <!-- Webhook 全局配置 -->
+            <div class="tab-content" id="webhook-tab">
+                <div class="card">
+                    <div class="card-title" style="color: var(--text-primary); font-size: 18px; margin-bottom: 20px;">🔔 全局 Webhook 配置</div>
+                    <p style="color: var(--text-secondary); margin-bottom: 20px;">当探针检测失败达到阈值时，将触发 Webhook 回调通知。</p>
+                    
+                    <div class="grid">
+                        <div class="form-group">
+                            <label>Webhook URL *</label>
+                            <input type="text" id="webhook_url" placeholder="https://your-api.com/webhook">
+                        </div>
+                        <div class="form-group">
+                            <label>HTTP 方法</label>
+                            <select id="webhook_method">
+                                <option value="POST">POST</option>
+                                <option value="GET">GET</option>
+                                <option value="PUT">PUT</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="grid">
+                        <div class="form-group">
+                            <label>超时时间（秒）</label>
+                            <input type="number" id="webhook_timeout" min="1" value="10">
+                        </div>
+                        <div class="form-group">
+                            <label>重试次数</label>
+                            <input type="number" id="webhook_retry" min="0" value="3">
+                        </div>
+                    </div>
+                    
+                    <div class="grid">
+                        <div class="form-group">
+                            <label>静默期（秒）</label>
+                            <input type="number" id="webhook_silence" min="10" value="60">
+                            <small style="color: var(--text-secondary);">触发告警后暂停检测的时间，等待 Webhook 处理完成</small>
+                        </div>
+                        <div class="form-group"></div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>自定义 Headers</label>
+                        <div id="webhook_headers_list"></div>
+                        <button class="btn btn-success btn-small" onclick="addWebhookHeader()" style="margin-top: 10px;">+ 添加 Header</button>
+                    </div>
+                    
+                    <div class="code-block">
+                        <strong style="color: var(--text-primary);">Webhook 发送的数据格式：</strong>
+                        <pre style="margin-top: 10px; font-size: 12px; color: #a3a3a3;">{
+  "type": "down|recovery",      // 告警类型
+  "probe_type": "ping|tcp|http", // 探针类型
+  "target": "example.com",       // 检测目标
+  "fail_count": 3,               // 连续失败次数
+  "threshold": 3,                // 失败阈值
+  "error": "连接超时",            // 错误信息
+  "timestamp": 1736300000,       // Unix 时间戳
+  "message": "可读消息"           // 人类可读消息
+}</pre>
+                    </div>
+                    
+                    <div style="margin-top: 20px;">
+                        <button class="btn btn-primary" onclick="saveConfig('webhook')">保存 Webhook 配置</button>
+                        <button class="btn btn-success" onclick="testWebhook()" style="margin-left: 10px;">🧪 测试发送</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 定时任务 -->
+            <div class="tab-content" id="schedules-tab">
+                <div style="margin-bottom: 20px;">
+                    <button class="btn btn-success" onclick="showAddScheduleModal()">+ 添加定时任务</button>
+                    <button class="btn btn-primary" onclick="loadSchedules()">🔄 刷新</button>
+                </div>
+                <table id="schedules_table">
+                    <thead>
+                        <tr>
+                            <th>任务名称</th>
+                            <th>Cron 表达式</th>
+                            <th>检测类型</th>
+                            <th>目标</th>
+                            <th>状态</th>
+                            <th>上次执行</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="schedules_body">
+                        <tr><td colspan="7" style="text-align: center;">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 实时日志 -->
+            <div class="tab-content" id="logs-tab">
+                <div style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center;">
+                    <label>显示行数：</label>
+                    <select id="log_lines" onchange="loadLogs()">
+                        <option value="50">50行</option>
+                        <option value="100" selected>100行</option>
+                        <option value="200">200行</option>
+                        <option value="500">500行</option>
+                        <option value="1000">1000行</option>
+                    </select>
+                    <button class="btn btn-primary" onclick="loadLogs()">🔄 刷新</button>
+                    <button class="btn btn-danger" onclick="clearLogs()">🗑️ 清空日志</button>
+                    <label style="margin-left: auto;">
+                        <input type="checkbox" id="auto_refresh" checked> 自动刷新 (30秒)
+                    </label>
+                </div>
+                <div id="log_content" style="max-height: 600px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word;">
+                    加载中...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <!-- 定时任务模态框 -->
+    <div id="scheduleModal" class="modal-overlay">
+        <div class="modal-body">
+            <h3 style="margin-bottom: 20px; color: var(--text-primary);" id="scheduleModalTitle">添加定时任务</h3>
+            <input type="hidden" id="schedule_id">
+            
+            <div class="form-group">
+                <label>任务名称 *</label>
+                <input type="text" id="schedule_name" placeholder="晚高峰线路切换">
+            </div>
+            
+            <div class="grid">
+                <div class="form-group">
+                    <label>Cron 表达式 *</label>
+                    <input type="text" id="schedule_cron" placeholder="0 18 * * *">
+                    <small style="color: var(--text-secondary);">格式: 分 时 日 月 周 (如: 0 18 * * * 表示每天18点)</small>
+                </div>
+                <div class="form-group">
+                    <label>检测类型</label>
+                    <select id="schedule_check_type" onchange="updateTargetPlaceholder()">
+                        <option value="ping">Ping</option>
+                        <option value="tcp">TCP</option>
+                        <option value="http">HTTP</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="grid">
+                <div class="form-group">
+                    <label>检测目标 *</label>
+                    <input type="text" id="schedule_target" placeholder="example.com 或 http://example.com/health">
+                </div>
+                <div class="form-group">
+                    <label>端口 (仅TCP)</label>
+                    <input type="number" id="schedule_port" value="0" placeholder="443">
+                </div>
+            </div>
+            
+            <div class="grid">
+                <div class="form-group">
+                    <label>超时时间（秒）</label>
+                    <input type="number" id="schedule_timeout" value="5" min="1">
+                </div>
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; margin-top: 30px;">
+                        <input type="checkbox" id="schedule_enabled" checked style="margin-right: 8px;">
+                        启用此任务
+                    </label>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Webhook URL（可用时回调）</label>
+                <input type="text" id="schedule_webhook_url" placeholder="https://your-api.com/webhook">
+            </div>
+            
+            <div class="form-group">
+                <label>自定义数据（JSON，附加到 Webhook）</label>
+                <textarea id="schedule_webhook_data" rows="3" placeholder='{"action": "switch_route", "from": "xxx.yyy.com", "to": "uuu.jjj.com"}'></textarea>
+            </div>
+            
+            <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                <button class="btn btn-secondary" onclick="closeScheduleModal()">取消</button>
+                <button class="btn btn-primary" onclick="saveSchedule()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tab 切换
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', () => {
+                const tab = button.dataset.tab;
+                
+                document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                
+                button.classList.add('active');
+                document.getElementById(tab + '-tab').classList.add('active');
+            });
+        });
+
+        // Toast 提示
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        // 加载配置 (showSummary: 是否显示配置摘要, refresh: 是否打印服务器日志)
+        async function loadConfig(showSummary = false, refresh = false) {
+            try {
+                const url = refresh ? '/api/config?refresh=true' : '/api/config';
+                const response = await fetch(url);
+                const result = await response.json();
+                
+                if (result.success && result.data) {
+                    const data = result.data;
+                    
+                    // Ping 配置
+                    if (data.ping) {
+                        document.getElementById('ping_enabled').checked = data.ping.enabled !== false;
+                        document.getElementById('ping_frequency').value = data.ping.frequency || 30;
+                        document.getElementById('ping_failcount').value = data.ping.failcount || 3;
+                        document.getElementById('ping_timeout').value = data.ping.timeout || 5;
+                        document.getElementById('ping_retry').value = data.ping.retry || 3;
+                        document.getElementById('ping_domains').value = (data.ping.domains || []).join('\n');
+                    }
+                    
+                    // TCP 配置
+                    if (data.tcp) {
+                        document.getElementById('tcp_enabled').checked = data.tcp.enabled === true;
+                        document.getElementById('tcp_frequency').value = data.tcp.frequency || 30;
+                        document.getElementById('tcp_failcount').value = data.tcp.failcount || 3;
+                        document.getElementById('tcp_timeout').value = data.tcp.timeout || 5;
+                        document.getElementById('tcp_retry').value = data.tcp.retry || 3;
+                        document.getElementById('tcp_domains').value = (data.tcp.domains || []).join('\n');
+                    }
+                    
+                    // HTTP 配置
+                    if (data.http) {
+                        document.getElementById('http_enabled').checked = data.http.enabled === true;
+                        document.getElementById('http_frequency').value = data.http.frequency || 30;
+                        document.getElementById('http_failcount').value = data.http.failcount || 3;
+                        document.getElementById('http_timeout').value = data.http.timeout || 10;
+                        document.getElementById('http_retry').value = data.http.retry || 3;
+                        document.getElementById('http_domains').value = (data.http.domains || []).join('\n');
+                    }
+                    
+                    // Webhook 配置
+                    if (data.webhook) {
+                        document.getElementById('webhook_url').value = data.webhook.url || '';
+                        document.getElementById('webhook_method').value = data.webhook.method || 'POST';
+                        document.getElementById('webhook_timeout').value = data.webhook.timeout || 10;
+                        document.getElementById('webhook_retry').value = data.webhook.retry || 3;
+                        document.getElementById('webhook_silence').value = data.webhook.silence_period || 60;
+                        // 加载 Headers
+                        webhookHeaders = data.webhook.headers || {};
+                        renderWebhookHeaders();
+                    }
+                    
+                    // 显示配置摘要
+                    if (showSummary) {
+                        showConfigSummary(data);
+                    }
+                }
+            } catch (error) {
+                showToast('加载配置失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 显示配置摘要
+        function showConfigSummary(data) {
+            const pingStatus = data.ping?.enabled !== false ? '✅ 启用' : '❌ 禁用';
+            const pingDomains = (data.ping?.domains || []).length;
+            
+            const tcpStatus = data.tcp?.enabled === true ? '✅ 启用' : '❌ 禁用';
+            const tcpDomains = (data.tcp?.domains || []).length;
+            
+            const httpStatus = data.http?.enabled === true ? '✅ 启用' : '❌ 禁用';
+            const httpDomains = (data.http?.domains || []).length;
+            
+            const webhookStatus = data.webhook?.url ? '✅ 已配置' : '❌ 未配置';
+            
+            const summary = `当前配置:\n` +
+                `━━━━━━━━━━━━━━━━━━━━\n` +
+                `Ping 监控: ${pingStatus} (${pingDomains} 个目标)\n` +
+                `TCP 监控: ${tcpStatus} (${tcpDomains} 个目标)\n` +
+                `HTTP 监控: ${httpStatus} (${httpDomains} 个目标)\n` +
+                `Webhook: ${webhookStatus}`;
+            
+            alert(summary);
+        }
+
+        // ========== Webhook Headers 管理 ==========
+        let webhookHeaders = {};
+        
+        // 渲染 Webhook Headers 列表
+        function renderWebhookHeaders() {
+            const container = document.getElementById('webhook_headers_list');
+            const entries = Object.entries(webhookHeaders);
+            
+            if (entries.length === 0) {
+                container.innerHTML = '<p class="text-muted" style="font-size: 14px;">暂无自定义 Headers</p>';
+                return;
+            }
+            
+            container.innerHTML = entries.map(([key, value], index) => `
+                <div class="list-item">
+                    <input type="text" value="${escapeHtml(key)}" placeholder="Header 名称" 
+                           style="flex: 1;"
+                           onchange="updateWebhookHeader(${index}, 'key', this.value)">
+                    <div style="width: 10px;"></div>
+                    <input type="text" value="${escapeHtml(value)}" placeholder="Header 值" 
+                           style="flex: 2;"
+                           onchange="updateWebhookHeader(${index}, 'value', this.value)">
+                    <button class="btn btn-danger btn-small" style="margin-left: 10px;" onclick="removeWebhookHeader('${escapeHtml(key)}')">删除</button>
+                </div>
+            `).join('');
+        }
+        
+        // 转义 HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // 添加 Webhook Header
+        function addWebhookHeader() {
+            const key = prompt('请输入 Header 名称（如: Authorization）');
+            if (!key || !key.trim()) return;
+            
+            const value = prompt('请输入 Header 值');
+            if (value === null) return;
+            
+            webhookHeaders[key.trim()] = value;
+            renderWebhookHeaders();
+        }
+        
+        // 更新 Webhook Header
+        function updateWebhookHeader(index, field, newValue) {
+            const entries = Object.entries(webhookHeaders);
+            if (index >= entries.length) return;
+            
+            const [oldKey, oldValue] = entries[index];
+            
+            if (field === 'key') {
+                delete webhookHeaders[oldKey];
+                webhookHeaders[newValue] = oldValue;
+            } else {
+                webhookHeaders[oldKey] = newValue;
+            }
+        }
+        
+        // 删除 Webhook Header
+        function removeWebhookHeader(key) {
+            delete webhookHeaders[key];
+            renderWebhookHeaders();
+        }
+        
+        // 测试 Webhook
+        async function testWebhook() {
+            const url = document.getElementById('webhook_url').value.trim();
+            if (!url) {
+                showToast('请先填写 Webhook URL', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/webhook/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        url: url,
+                        method: document.getElementById('webhook_method').value,
+                        timeout: parseInt(document.getElementById('webhook_timeout').value) || 10,
+                        headers: webhookHeaders
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    showToast('Webhook 测试发送成功！');
+                } else {
+                    showToast('测试失败: ' + result.message, 'error');
+                }
+            } catch (error) {
+                showToast('测试失败: ' + error.message, 'error');
+            }
+        }
+
+        // 渲染定时任务列表 (已弃用，改用独立的 loadSchedules)
+        function renderSchedulesList(schedules) {
+            // 兼容旧代码
+        }
+
+        // ========== 定时任务管理 ==========
+        
+        // 加载定时任务列表
+        async function loadSchedules() {
+            try {
+                const response = await fetch('/api/schedules');
+                const result = await response.json();
+                
+                if (result.success) {
+                    renderSchedulesTable(result.data || []);
+                } else {
+                    showToast(result.message, 'error');
+                }
+            } catch (error) {
+                showToast('加载定时任务失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 渲染定时任务表格
+        function renderSchedulesTable(tasks) {
+            const tbody = document.getElementById('schedules_body');
+            
+            if (!tasks || tasks.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;" class="text-muted">暂无定时任务</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = tasks.map(task => `
+                <tr>
+                    <td><strong>${task.name}</strong></td>
+                    <td><code class="code-inline">${task.cron}</code></td>
+                    <td>${getCheckTypeLabel(task.check_type)}</td>
+                    <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis;" title="${task.target}">${task.target}${task.port ? ':' + task.port : ''}</td>
+                    <td>
+                        <span class="${task.enabled ? 'text-success' : 'text-muted'}">
+                            ${task.enabled ? '✓ 启用' : '○ 禁用'}
+                        </span>
+                    </td>
+                    <td style="font-size: 12px;" class="text-muted">
+                        ${task.last_run_at ? task.last_run_at.substring(5, 16) : '-'}<br>
+                        <small>${task.last_result || ''}</small>
+                    </td>
+                    <td>
+                        <button class="btn btn-small btn-primary" onclick="runScheduleNow('${task.id}')" title="立即执行">▶</button>
+                        <button class="btn btn-small" style="background: #fbbf24; color: #000;" onclick="editSchedule('${task.id}')" title="编辑">✎</button>
+                        <button class="btn btn-small btn-secondary" 
+                                onclick="toggleSchedule('${task.id}', ${!task.enabled})" title="${task.enabled ? '禁用' : '启用'}">
+                            ${task.enabled ? '⏸' : '▶'}
+                        </button>
+                        <button class="btn btn-small btn-danger" onclick="deleteSchedule('${task.id}')" title="删除">✕</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        function getCheckTypeLabel(type) {
+            const labels = { 'ping': '🏓 Ping', 'tcp': '🔌 TCP', 'http': '🌐 HTTP' };
+            return labels[type] || type;
+        }
+        
+        // 更新检测目标的 placeholder
+        function updateTargetPlaceholder() {
+            const checkType = document.getElementById('schedule_check_type').value;
+            const targetInput = document.getElementById('schedule_target');
+            const portInput = document.getElementById('schedule_port');
+            
+            const placeholders = {
+                'ping': 'example.com 或 192.168.1.1',
+                'tcp': 'example.com 或 192.168.1.1',
+                'http': 'http://example.com/health 或 https://api.example.com/status'
+            };
+            
+            targetInput.placeholder = placeholders[checkType] || '检测目标地址';
+            
+            // TCP 模式下高亮端口输入框
+            if (checkType === 'tcp') {
+                portInput.style.borderColor = '#3b82f6';
+                portInput.parentElement.querySelector('label').innerHTML = '端口 * <span style="color: #ef4444;">(必填)</span>';
+            } else {
+                portInput.style.borderColor = '#334155';
+                portInput.parentElement.querySelector('label').innerHTML = '端口 (仅TCP)';
+            }
+        }
+        
+        // 显示添加任务模态框
+        function showAddScheduleModal() {
+            document.getElementById('scheduleModalTitle').textContent = '添加定时任务';
+            document.getElementById('schedule_id').value = '';
+            document.getElementById('schedule_name').value = '';
+            document.getElementById('schedule_cron').value = '0 18 * * *';
+            document.getElementById('schedule_check_type').value = 'ping';
+            document.getElementById('schedule_target').value = '';
+            document.getElementById('schedule_port').value = '0';
+            document.getElementById('schedule_timeout').value = '5';
+            document.getElementById('schedule_enabled').checked = true;
+            document.getElementById('schedule_webhook_url').value = '';
+            document.getElementById('schedule_webhook_data').value = '';
+            updateTargetPlaceholder();
+            document.getElementById('scheduleModal').style.display = 'block';
+        }
+        
+        // 编辑任务
+        async function editSchedule(id) {
+            try {
+                const response = await fetch(`/api/schedules/${id}`);
+                const result = await response.json();
+                
+                if (result.success && result.data) {
+                    const task = result.data;
+                    document.getElementById('scheduleModalTitle').textContent = '编辑定时任务';
+                    document.getElementById('schedule_id').value = task.id;
+                    document.getElementById('schedule_name').value = task.name;
+                    document.getElementById('schedule_cron').value = task.cron;
+                    document.getElementById('schedule_check_type').value = task.check_type;
+                    document.getElementById('schedule_target').value = task.target;
+                    document.getElementById('schedule_port').value = task.port || 0;
+                    document.getElementById('schedule_timeout').value = task.timeout || 5;
+                    document.getElementById('schedule_enabled').checked = task.enabled;
+                    document.getElementById('schedule_webhook_url').value = task.webhook_url || '';
+                    document.getElementById('schedule_webhook_data').value = task.webhook_data ? JSON.stringify(task.webhook_data, null, 2) : '';
+                    updateTargetPlaceholder();
+                    document.getElementById('scheduleModal').style.display = 'block';
+                } else {
+                    showToast(result.message || '获取任务失败', 'error');
+                }
+            } catch (error) {
+                showToast('获取任务失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 关闭模态框
+        function closeScheduleModal() {
+            document.getElementById('scheduleModal').style.display = 'none';
+        }
+        
+        // 保存任务
+        async function saveSchedule() {
+            const id = document.getElementById('schedule_id').value;
+            const name = document.getElementById('schedule_name').value.trim();
+            const cron = document.getElementById('schedule_cron').value.trim();
+            const target = document.getElementById('schedule_target').value.trim();
+            
+            if (!name) { showToast('请输入任务名称', 'error'); return; }
+            if (!cron) { showToast('请输入 Cron 表达式', 'error'); return; }
+            if (!target) { showToast('请输入检测目标', 'error'); return; }
+            
+            let webhookData = {};
+            const webhookDataStr = document.getElementById('schedule_webhook_data').value.trim();
+            if (webhookDataStr) {
+                try {
+                    webhookData = JSON.parse(webhookDataStr);
+                } catch (e) {
+                    showToast('自定义数据 JSON 格式错误', 'error');
+                    return;
+                }
+            }
+            
+            const task = {
+                name: name,
+                enabled: document.getElementById('schedule_enabled').checked,
+                cron: cron,
+                check_type: document.getElementById('schedule_check_type').value,
+                target: target,
+                port: parseInt(document.getElementById('schedule_port').value) || 0,
+                timeout: parseInt(document.getElementById('schedule_timeout').value) || 5,
+                webhook_url: document.getElementById('schedule_webhook_url').value.trim(),
+                webhook_data: webhookData
+            };
+            
+            try {
+                const url = id ? `/api/schedules/${id}` : '/api/schedules';
+                const method = id ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(task)
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    showToast(id ? '任务更新成功' : '任务创建成功');
+                    closeScheduleModal();
+                    loadSchedules();
+                } else {
+                    showToast(result.message, 'error');
+                }
+            } catch (error) {
+                showToast('保存失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 删除任务
+        async function deleteSchedule(id) {
+            if (!confirm('确定要删除此任务吗？')) return;
+            
+            try {
+                const response = await fetch(`/api/schedules/${id}`, { method: 'DELETE' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast('任务已删除');
+                    loadSchedules();
+                } else {
+                    showToast(result.message, 'error');
+                }
+            } catch (error) {
+                showToast('删除失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 启用/禁用任务
+        async function toggleSchedule(id, enable) {
+            try {
+                const action = enable ? 'enable' : 'disable';
+                const response = await fetch(`/api/schedules/${id}/${action}`, { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast(enable ? '任务已启用' : '任务已禁用');
+                    loadSchedules();
+                } else {
+                    showToast(result.message, 'error');
+                }
+            } catch (error) {
+                showToast('操作失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 立即执行任务
+        async function runScheduleNow(id) {
+            try {
+                showToast('正在执行...');
+                const response = await fetch(`/api/schedules/${id}/run`, { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    const data = result.data;
+                    if (data.success) {
+                        showToast(`✓ 目标可用: ${data.message}`);
+                    } else {
+                        showToast(`✗ 目标不可用: ${data.message}`, 'error');
+                    }
+                    loadSchedules();
+                } else {
+                    showToast(result.message, 'error');
+                }
+            } catch (error) {
+                showToast('执行失败: ' + error.message, 'error');
+            }
+        }
+
+        // 保存配置
+        async function saveConfig(type) {
+            try {
+                const config = {
+                    ping: {
+                        enabled: document.getElementById('ping_enabled').checked,
+                        frequency: parseInt(document.getElementById('ping_frequency').value) || 30,
+                        failcount: parseInt(document.getElementById('ping_failcount').value) || 3,
+                        timeout: parseInt(document.getElementById('ping_timeout').value) || 5,
+                        retry: parseInt(document.getElementById('ping_retry').value) || 3,
+                        domains: document.getElementById('ping_domains').value.split('\n').filter(d => d.trim())
+                    },
+                    tcp: {
+                        enabled: document.getElementById('tcp_enabled').checked,
+                        frequency: parseInt(document.getElementById('tcp_frequency').value) || 30,
+                        failcount: parseInt(document.getElementById('tcp_failcount').value) || 3,
+                        timeout: parseInt(document.getElementById('tcp_timeout').value) || 5,
+                        retry: parseInt(document.getElementById('tcp_retry').value) || 3,
+                        domains: document.getElementById('tcp_domains').value.split('\n').filter(d => d.trim())
+                    },
+                    http: {
+                        enabled: document.getElementById('http_enabled').checked,
+                        frequency: parseInt(document.getElementById('http_frequency').value) || 30,
+                        failcount: parseInt(document.getElementById('http_failcount').value) || 3,
+                        timeout: parseInt(document.getElementById('http_timeout').value) || 10,
+                        retry: parseInt(document.getElementById('http_retry').value) || 3,
+                        domains: document.getElementById('http_domains').value.split('\n').filter(d => d.trim())
+                    },
+                    webhook: {
+                        url: document.getElementById('webhook_url').value.trim(),
+                        method: document.getElementById('webhook_method').value || 'POST',
+                        timeout: parseInt(document.getElementById('webhook_timeout').value) || 10,
+                        retry: parseInt(document.getElementById('webhook_retry').value) || 3,
+                        silence_period: parseInt(document.getElementById('webhook_silence').value) || 60,
+                        headers: webhookHeaders
+                    }
+                };
+
+                const response = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showToast('配置保存成功！');
+                } else {
+                    showToast(result.message, 'error');
+                }
+            } catch (error) {
+                showToast('保存失败: ' + error.message, 'error');
+            }
+        }
+
+        // 保存定时任务
+        async function saveSchedules() {
+            await saveConfig('schedules');
+        }
+
+        // 加载日志
+        async function loadLogs() {
+            try {
+                const lines = document.getElementById('log_lines').value;
+                const response = await fetch(`/api/logs?lines=${lines}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    const logContent = document.getElementById('log_content');
+                    logContent.textContent = result.data.content || '(暂无日志)';
+                    // 自动滚动到底部
+                    logContent.scrollTop = logContent.scrollHeight;
+                } else {
+                    showToast(result.message, 'error');
+                }
+            } catch (error) {
+                showToast('加载日志失败: ' + error.message, 'error');
+            }
+        }
+
+        // 清空日志
+        async function clearLogs() {
+            if (!confirm('确定要清空所有日志吗？此操作不可恢复！')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/logs/clear', {
+                    method: 'POST'
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    showToast('日志已清空！');
+                    loadLogs();
+                } else {
+                    showToast(result.message, 'error');
+                }
+            } catch (error) {
+                showToast('清空日志失败: ' + error.message, 'error');
+            }
+        }
+
+        // 手动刷新所有配置
+        async function refreshAll() {
+            await loadConfig(true, true);  // 显示配置摘要 + 打印服务器日志
+            loadSchedules();
+            loadLogs();
+        }
+
+        // 初始化
+        window.addEventListener('load', () => {
+            loadConfig();
+            loadSchedules();
+            loadLogs();
+            
+            // 仅定期刷新日志（如果开启自动刷新）
+            setInterval(() => {
+                if (document.getElementById('auto_refresh').checked) {
+                    loadLogs();
+                }
+            }, 30000);
+        });
+    </script>
+</body>
+</html>

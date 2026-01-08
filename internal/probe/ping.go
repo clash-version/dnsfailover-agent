@@ -1,24 +1,32 @@
-package ping
+package probe
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"time"
 
 	goping "github.com/go-ping/ping"
 )
 
-// Result Ping检测结果
-type Result struct {
-	Success bool          // 是否成功
-	Latency time.Duration // 平均延迟
-	Error   error         // 错误信息
+// PingChecker ICMP Ping检测器
+type PingChecker struct{}
+
+// NewPingChecker 创建Ping检测器
+func NewPingChecker() *PingChecker {
+	return &PingChecker{}
 }
 
-// Check 执行ping检测
-func Check(target string, timeout time.Duration) *Result {
-	result := &Result{}
+// Type 返回检测类型
+func (c *PingChecker) Type() ProbeType {
+	return TypePing
+}
+
+// Check 执行ICMP Ping检测
+func (c *PingChecker) Check(target string, timeout time.Duration) *Result {
+	result := &Result{
+		Type:   TypePing,
+		Target: target,
+	}
 
 	// 如果是域名，先使用系统 DNS 解析
 	ipAddr := target
@@ -34,7 +42,6 @@ func Check(target string, timeout time.Duration) *Result {
 			return result
 		}
 		ipAddr = ips[0] // 使用第一个IP
-		log.Printf("[DEBUG] DNS解析: %s -> %s", target, ipAddr)
 	}
 
 	pinger, err := goping.NewPinger(ipAddr)
@@ -51,42 +58,35 @@ func Check(target string, timeout time.Duration) *Result {
 	pinger.Timeout = timeout                 // 超时时间
 	pinger.Interval = time.Millisecond * 300 // 包间隔300ms
 
-	log.Printf("[DEBUG] 开始ICMP Ping: %s (目标IP: %s, 超时: %v)", target, ipAddr, timeout)
-
 	// 执行ping
 	err = pinger.Run()
 	if err != nil {
 		result.Error = fmt.Errorf("执行ping失败: %w", err)
-		log.Printf("[ERROR] ICMP Ping执行失败: %s - %v", ipAddr, err)
 		return result
 	}
 
 	// 获取统计信息
 	stats := pinger.Statistics()
-	log.Printf("[DEBUG] ICMP Ping统计: %s - 发送: %d, 接收: %d, 丢包率: %.1f%%, 平均延迟: %v",
-		ipAddr, stats.PacketsSent, stats.PacketsRecv, stats.PacketLoss, stats.AvgRtt)
 
 	// 判断是否成功（至少有一个包收到响应）
 	if stats.PacketsRecv > 0 {
 		result.Success = true
 		result.Latency = stats.AvgRtt
-		log.Printf("[DEBUG] ✓ ICMP Ping成功: %s (延迟: %v)", ipAddr, result.Latency)
 	} else {
 		result.Success = false
-		result.Error = fmt.Errorf("ICMP应答超时 - 目标主机可能禁用了ICMP响应 (发送: %d, 接收: %d, 丢包率: %.0f%%)",
+		result.Error = fmt.Errorf("ICMP应答超时 (发送: %d, 接收: %d, 丢包率: %.0f%%)",
 			stats.PacketsSent, stats.PacketsRecv, stats.PacketLoss)
-		log.Printf("[WARN] ✗ ICMP Ping失败: %s - %v", ipAddr, result.Error)
 	}
 
 	return result
 }
 
-// CheckWithRetry 带重试的ping检测
-func CheckWithRetry(target string, timeout time.Duration, retryCount int) *Result {
+// CheckWithRetry 带重试的Ping检测
+func (c *PingChecker) CheckWithRetry(target string, timeout time.Duration, retryCount int) *Result {
 	var result *Result
 
 	for i := 0; i < retryCount; i++ {
-		result = Check(target, timeout)
+		result = c.Check(target, timeout)
 		if result.Success {
 			return result
 		}

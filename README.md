@@ -1,127 +1,78 @@
 # DNS Failover Agent
 
-DNS 故障转移代理，支持 Ping/TCP/HTTP 健康检测，自动切换 Cloudflare DNS 记录。
+一个轻量级的网络监控代理，支持 Ping、TCP、HTTP 检测，提供 Web 管理面板和灵活的 Webhook 告警通知。
 
-## 功能特性
+![Dashboard Preview](https://via.placeholder.com/800x400?text=Web+Dashboard+Preview)
 
-- ✅ **多种健康检测方式**：Ping、TCP、HTTP
-- ✅ **自动故障转移**：检测失败达到阈值后自动切换 DNS
-- ✅ **远程配置**：支持从 S3 或 HTTP 加载配置
-- ✅ **权重选择**：支持按权重选择备用地址
-- ✅ **冷却机制**：防止频繁切换
-- ✅ **Systemd 支持**：可作为系统服务运行
+## ✨ 功能特性
 
-## 快速开始
+- **多协议监控**：支持 ICMP Ping、TCP 端口连接、HTTP/HTTPS 请求状态检测。
+- **可视化管理**：内置 Web 控制台，实时查看监控状态、日志和修改配置。
+- **灵活告警**：
+  - 支持自定义 Webhook（如钉钉、飞书、Slack、Telegram 等）。
+  - 支持设置请求头、超时时间、重试次数。
+  - **静默期机制**：告警触发后自动静默，防止消息轰炸。
+- **定时任务**：支持 Crontab 表达式的定时检测或网络操作。
+- **单文件部署**：Web 界面嵌入二进制文件，无需部署静态资源。
 
-### 1. 配置环境变量
+## 🚀 快速开始 (Linux)
 
-复制 `.env.example` 为 `.env` 并填写配置：
+### 一键安装
 
 ```bash
-cp .env.example .env
+curl -fsSL https://raw.githubusercontent.com/clash-version/n8n-agent/main/install.sh | sudo bash
 ```
 
-```properties
-# Cloudflare API Token
-CF_API_TOKEN=your-cloudflare-api-token
+安装完成后，访问 Web 面板：`http://服务器IP:8080/`
 
-# AWS 配置 (用于从S3读取远程配置)
-AWS_ACCESS_KEY_ID=your-aws-access-key
-AWS_SECRET_ACCESS_KEY=your-aws-secret-key
-AWS_REGION=ap-southeast-1
+### 一键卸载
 
-# 远程配置URL
-REMOTE_CONFIG_URL=s3://your-bucket/dns/remote-config.json
+下载并运行卸载脚本：
 
-# 日志配置
-LOG_ENABLED=true
-LOG_LEVEL=info
-LOG_PATH=./logs/failover.log
-LOG_MAX_DAYS=3
+```bash
+curl -fsSL https://raw.githubusercontent.com/clash-version/n8n-agent/main/uninstall.sh | sudo bash
 ```
 
-### 2. 远程配置文件格式
+## 🛠️ 手动构建
 
-`remote-config.json` 示例：
+如果你需要修改代码或在 Windows/macOS 上运行：
+
+```bash
+# 1. 克隆代码
+git clone https://github.com/clash-version/n8n-agent.git
+cd n8n-agent
+
+# 2. 编译 (Web 资源会自动嵌入)
+go build -o dnsfailover .
+
+# 3. 运行
+./dnsfailover monitor start --web --port 8080
+```
+
+## ⚙️ 配置说明
+
+所有配置均可通过 Web 面板进行实时修改并持久化保存。
+
+- **配置文件路径**: `/etc/dnsfailover/probe.db` (SQLite)
+- **日志文件路径**: `/var/log/dnsfailover/`
+
+### Webhook 数据格式
+
+系统会向你的 Webhook URL 发送如下 JSON 数据：
 
 ```json
 {
-    "ping": {
-        "frequency": 30,
-        "failcount": 5,
-        "timeout": 5,
-        "retry": 3,
-        "remote_update_freq": 60,
-        "domains": [
-            "example.com"
-        ],
-        "failover": [
-            {"address": "backup1.example.com", "weight": 100},
-            {"address": "backup2.example.com", "weight": 50}
-        ]
-    },
-    "tcp": {
-        "frequency": 30,
-        "failcount": 5,
-        "timeout": 5,
-        "retry": 3,
-        "domains": ["example.com:443"],
-        "failover": []
-    },
-    "http": {
-        "frequency": 30,
-        "failcount": 5,
-        "timeout": 5,
-        "retry": 3,
-        "domains": ["https://example.com/health"],
-        "failover": []
-    }
+  "type": "down",                // 告警类型: down (故障) | recovery (恢复)
+  "probe_type": "tcp",           // 检测类型: ping | tcp | http
+  "target": "example.com:443",   // 目标地址
+  "fail_count": 3,               // 当前连续失败次数
+  "threshold": 3,                // 触发阈值
+  "error": "i/o timeout",        // 具体的错误信息
+  "timestamp": 1709880000,       // Unix 时间戳
+  "message": "[tcp] example.com:443 连续失败 3 次..." // 可读消息
 }
 ```
 
-### 3. 运行
+## 📝 License
 
-```bash
-# 直接运行
-./dnsfailover monitor start
-
-# 或使用 systemd
-sudo bash systemd/install-service.sh
-```
-
-## 命令
-
-```bash
-# 启动监控
-./dnsfailover monitor start
-
-# 查看帮助
-./dnsfailover --help
-```
-
-## Systemd 部署
-
-详见 [SYSTEMD.md](./SYSTEMD.md)
-
-## 日志输出示例
-
-```
-[PING] ✓ example.com (延迟: 15ms)
-[PING] ✗ example.com 失败 (2/5) - timeout
-[PING] ⚠ example.com 触发故障转移
-✓ 故障转移成功: example.com
-```
-
-## 编译
-
-```bash
-# Linux
-GOOS=linux GOARCH=amd64 go build -o dnsfailover-linux-amd64 .
-
-# Windows
-GOOS=windows GOARCH=amd64 go build -o dnsfailover.exe .
-```
-
-## 许可证
-
-MIT License
+MIT

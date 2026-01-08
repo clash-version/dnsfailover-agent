@@ -1,17 +1,33 @@
 package logger
 
 import (
-	"io"
 	"os"
-	"path/filepath"
 
 	"github.com/sirupsen/logrus"
-	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 var Log *logrus.Logger
 
-// Init 初始化日志系统（带文件输出）
+// MemoryHook 内存日志钩子
+type MemoryHook struct {
+	buffer *LogBuffer
+}
+
+// Levels 返回支持的日志级别
+func (hook *MemoryHook) Levels() []logrus.Level {
+	return logrus.AllLevels
+}
+
+// Fire 当日志触发时调用
+func (hook *MemoryHook) Fire(entry *logrus.Entry) error {
+	if hook.buffer != nil {
+		message, _ := entry.String()
+		hook.buffer.AddLog(entry.Level.String(), message)
+	}
+	return nil
+}
+
+// Init 初始化日志系统（仅控制台输出+内存缓冲）
 func Init(level, logPath string, maxDays int) error {
 	Log = logrus.New()
 
@@ -29,25 +45,14 @@ func Init(level, logPath string, maxDays int) error {
 		ForceColors:     true,
 	})
 
-	// 创建日志目录
-	logDir := filepath.Dir(logPath)
-	if err := os.MkdirAll(logDir, 0755); err != nil {
-		return err
-	}
+	// 仅输出到控制台
+	Log.SetOutput(os.Stdout)
 
-	// 配置日志轮转
-	fileWriter := &lumberjack.Logger{
-		Filename:   logPath,
-		MaxSize:    100,      // MB
-		MaxBackups: maxDays,  // 保留备份数
-		MaxAge:     maxDays,  // 天
-		Compress:   true,     // 压缩
-		LocalTime:  true,
-	}
+	// 初始化内存缓冲区（保留最近1000条日志）
+	InitBuffer(1000)
 
-	// 同时输出到控制台和文件
-	multiWriter := io.MultiWriter(os.Stdout, fileWriter)
-	Log.SetOutput(multiWriter)
+	// 添加内存钩子
+	Log.AddHook(&MemoryHook{buffer: GetBuffer()})
 
 	return nil
 }

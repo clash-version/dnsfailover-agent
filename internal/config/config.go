@@ -1,59 +1,41 @@
 package config
 
 import (
-	"fmt"
 	"os"
 	"strconv"
 
 	"github.com/joho/godotenv"
 )
 
-// Config 主配置结构（从 .env 文件加载）
+// Config 主配置结构
 type Config struct {
-	DNS  DNSConfig
-	Ping PingConfig
-	Tcp  TcpConfig
-	Http HttpConfig
-	Log  LogConfig
+	Ping    ProbeConfig
+	Tcp     ProbeConfig
+	Http    ProbeConfig
+	Webhook WebhookConfig
+	Log     LogConfig
+	DBPath  string // SQLite 数据库路径
 }
 
-// DNSConfig DNS配置
-type DNSConfig struct {
-	APIToken string
+// WebhookConfig Webhook 回调配置
+type WebhookConfig struct {
+	URL           string            `json:"url"`
+	Method        string            `json:"method"`
+	Headers       map[string]string `json:"headers"`
+	Timeout       int               `json:"timeout"`
+	Retry         int               `json:"retry"`
+	SilencePeriod int               `json:"silence_period"` // 静默期（秒），发送告警后暂停检测的时间
 }
 
-// PingConfig Ping检测配置
-type PingConfig struct {
-	Frequency        int
-	FailCount        int
-	Timeout          int
-	Retry            int
-	RemoteConfigURL  string // 仅从 .env 读取
-	RemoteUpdateFreq int
-	Domains          []string
-	Failover         []FailoverTarget
-}
-
-// FailoverTarget 备用地址
-type FailoverTarget struct {
-	Address string `json:"address"`
-	Weight  int    `json:"weight"`
-}
-
-// TcpConfig TCP检测配置
-type TcpConfig = ProbeConfig
-
-// HttpConfig HTTP检测配置
-type HttpConfig = ProbeConfig
-
-// ProbeConfig 通用检测配置（TCP/HTTP共用）
+// ProbeConfig 通用检测配置
 type ProbeConfig struct {
-	Frequency int
-	FailCount int
-	Timeout   int
-	Retry     int
-	Domains   []string
-	Failover  []FailoverTarget
+	Enabled          bool     `json:"enabled"`
+	Frequency        int      `json:"frequency"`
+	FailCount        int      `json:"failcount"`
+	Timeout          int      `json:"timeout"`
+	Retry            int      `json:"retry"`
+	RemoteUpdateFreq int      `json:"remote_update_freq"`
+	Domains          []string `json:"domains"`
 }
 
 // LogConfig 日志配置
@@ -64,31 +46,26 @@ type LogConfig struct {
 	MaxDays int
 }
 
-// Load 从 .env 文件加载配置
+// Load 从 .env 文件加载基础配置（日志配置等）
 func Load() (*Config, error) {
 	_ = godotenv.Load()
 	cfg := &Config{}
-	cfg.DNS.APIToken = os.Getenv("CF_API_TOKEN")
-	cfg.Ping.RemoteConfigURL = os.Getenv("REMOTE_CONFIG_URL")
+
+	// 数据库路径
+	cfg.DBPath = getEnvString("DB_PATH", "./data/probe.db")
+
+	// Webhook 配置（可从环境变量覆盖）
+	cfg.Webhook.URL = os.Getenv("WEBHOOK_URL")
+	cfg.Webhook.Method = getEnvString("WEBHOOK_METHOD", "POST")
+	cfg.Webhook.Timeout = getEnvInt("WEBHOOK_TIMEOUT", 10)
+
+	// 日志配置
 	cfg.Log.Enabled = getEnvBool("LOG_ENABLED", true)
 	cfg.Log.Level = getEnvString("LOG_LEVEL", "info")
-	cfg.Log.Path = getEnvString("LOG_PATH", "./logs/failover.log")
+	cfg.Log.Path = getEnvString("LOG_PATH", "./logs/probe.log")
 	cfg.Log.MaxDays = getEnvInt("LOG_MAX_DAYS", 30)
-	if err := cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("配置验证失败: %w", err)
-	}
-	return cfg, nil
-}
 
-// Validate 验证本地配置
-func (c *Config) Validate() error {
-	if c.DNS.APIToken == "" {
-		return fmt.Errorf("环境变量 CF_API_TOKEN 不能为空")
-	}
-	if c.Ping.RemoteConfigURL == "" {
-		return fmt.Errorf("环境变量 REMOTE_CONFIG_URL 不能为空")
-	}
-	return nil
+	return cfg, nil
 }
 
 func getEnvString(key, defaultVal string) string {

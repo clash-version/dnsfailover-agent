@@ -5,12 +5,17 @@ import (
 	"time"
 )
 
+// DefaultSilenceDuration 默认静默期时间（发送告警后暂停检测的时间）
+// 可通过配置覆盖
+var DefaultSilenceDuration = 60 * time.Second
+
 // DomainState 域名运行时状态（仅存在于内存中）
 type DomainState struct {
-	Domain            string    // 域名
-	FailCount         int       // 当前周期内的连续失败次数
-	LastSwitchTime    time.Time // 最后一次切换时间
-	SwitchCooldownMin int       // 切换冷却期（分钟）
+	Domain        string    // 域名/目标
+	FailCount     int       // 当前周期内的连续失败次数
+	LastAlertTime time.Time // 最后一次告警时间
+	IsDown        bool      // 当前是否处于故障状态
+	SilenceUntil  time.Time // 静默期截止时间（此时间前不进行检测）
 }
 
 // StateManager 状态管理器（内存中维护域名状态）
@@ -26,17 +31,27 @@ func NewStateManager() *StateManager {
 	}
 }
 
-// InitDomain 初始化域名状态（启动监控时调用，失败计数设为0）
+// InitDomain 初始化域名状态
 func (sm *StateManager) InitDomain(domain string) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
 	sm.states[domain] = &DomainState{
-		Domain:            domain,
-		FailCount:         0,
-		LastSwitchTime:    time.Time{}, // 零值表示从未切换过
-		SwitchCooldownMin: 5,           // 默认5分钟冷却期
+		Domain:    domain,
+		FailCount: 0,
+		IsDown:    false,
 	}
+}
+
+// GetState 获取域名状态
+func (sm *StateManager) GetState(domain string) *DomainState {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	if state, exists := sm.states[domain]; exists {
+		return state
+	}
+	return &DomainState{Domain: domain}
 }
 
 // GetFailCount 获取域名的失败计数
@@ -62,10 +77,9 @@ func (sm *StateManager) IncrementFailCount(domain string) int {
 
 	// 如果不存在，创建新状态
 	sm.states[domain] = &DomainState{
-		Domain:            domain,
-		FailCount:         1,
-		LastSwitchTime:    time.Time{},
-		SwitchCooldownMin: 5,
+		Domain:    domain,
+		FailCount: 1,
+		IsDown:    false,
 	}
 	return 1
 }
@@ -77,10 +91,70 @@ func (sm *StateManager) ResetFailCount(domain string) {
 
 	if state, exists := sm.states[domain]; exists {
 		state.FailCount = 0
+		state.IsDown = false
 	}
 }
 
-// RemoveDomain 移除域名状态（当域名被删除时调用）
+// MarkDown 标记为故障状态，并设置静默期
+func (sm *StateManager) MarkDown(domain string) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	if state, exists := sm.states[domain]; exists {
+		state.IsDown = true
+		state.LastAlertTime = time.Now()
+		state.SilenceUntil = time.Now().Add(DefaultSilenceDuration)
+	}
+}
+
+// MarkDownWithSilence 标记为故障状态，指定静默期
+func (sm *StateManager) MarkDownWithSilence(domain string, silenceDuration time.Duration) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	if state, exists := sm.states[domain]; exists {
+		state.IsDown = true
+		state.LastAlertTime = time.Now()
+		state.SilenceUntil = time.Now().Add(silenceDuration)
+	}
+}
+
+// IsSilenced 检查目标是否在静默期内
+func (sm *StateManager) IsSilenced(domain string) bool {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	if state, exists := sm.states[domain]; exists {
+		return time.Now().Before(state.SilenceUntil)
+	}
+	return false
+}
+
+// GetSilenceRemaining 获取剩余静默时间
+func (sm *StateManager) GetSilenceRemaining(domain string) time.Duration {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	if state, exists := sm.states[domain]; exists {
+		remaining := time.Until(state.SilenceUntil)
+		if remaining > 0 {
+			return remaining
+		}
+	}
+	return 0
+}
+
+// ClearSilence 清除静默期
+func (sm *StateManager) ClearSilence(domain string) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	if state, exists := sm.states[domain]; exists {
+		state.SilenceUntil = time.Time{}
+	}
+}
+
+// RemoveDomain 移除域名状态
 func (sm *StateManager) RemoveDomain(domain string) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
@@ -88,74 +162,19 @@ func (sm *StateManager) RemoveDomain(domain string) {
 	delete(sm.states, domain)
 }
 
-// GetAllStates 获取所有域名状态（用于调试）
+// GetAllStates 获取所有域名状态
 func (sm *StateManager) GetAllStates() map[string]*DomainState {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 
-	// 返回副本，避免外部修改
 	result := make(map[string]*DomainState)
 	for k, v := range sm.states {
 		result[k] = &DomainState{
-			Domain:            v.Domain,
-			FailCount:         v.FailCount,
-			LastSwitchTime:    v.LastSwitchTime,
-			SwitchCooldownMin: v.SwitchCooldownMin,
+			Domain:        v.Domain,
+			FailCount:     v.FailCount,
+			LastAlertTime: v.LastAlertTime,
+			IsDown:        v.IsDown,
 		}
 	}
 	return result
-}
-
-// MarkSwitched 标记域名已执行切换（记录切换时间）
-func (sm *StateManager) MarkSwitched(domain string) {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
-
-	if state, exists := sm.states[domain]; exists {
-		state.LastSwitchTime = time.Now()
-		state.FailCount = 0 // 切换后重置失败计数
-	}
-}
-
-// IsInCooldown 检查域名是否在冷却期内
-func (sm *StateManager) IsInCooldown(domain string) bool {
-	sm.mu.RLock()
-	defer sm.mu.RUnlock()
-
-	state, exists := sm.states[domain]
-	if !exists {
-		return false
-	}
-
-	// 如果从未切换过（零值时间），不在冷却期
-	if state.LastSwitchTime.IsZero() {
-		return false
-	}
-
-	// 计算距离上次切换的时间
-	elapsed := time.Since(state.LastSwitchTime)
-	cooldownDuration := time.Duration(state.SwitchCooldownMin) * time.Minute
-
-	return elapsed < cooldownDuration
-}
-
-// GetCooldownRemaining 获取剩余冷却时间（分钟）
-func (sm *StateManager) GetCooldownRemaining(domain string) float64 {
-	sm.mu.RLock()
-	defer sm.mu.RUnlock()
-
-	state, exists := sm.states[domain]
-	if !exists || state.LastSwitchTime.IsZero() {
-		return 0
-	}
-
-	elapsed := time.Since(state.LastSwitchTime)
-	cooldownDuration := time.Duration(state.SwitchCooldownMin) * time.Minute
-	remaining := cooldownDuration - elapsed
-
-	if remaining <= 0 {
-		return 0
-	}
-
-	return remaining.Minutes()
 }
