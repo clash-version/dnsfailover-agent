@@ -12,7 +12,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 # 配置
-REPO="clash-version/n8n-agent"
+REPO="clash-version/dnsfailover-agent"
 BINARY_NAME="dnsfailover"
 INSTALL_DIR="/usr/local/bin"
 CONFIG_DIR="/etc/dnsfailover"
